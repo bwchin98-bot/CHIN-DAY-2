@@ -1,6 +1,6 @@
 import os
 import json
-import google.generativeai as genai
+import google.genai as genai
 from dotenv import load_dotenv
 from crawler import load_config
 
@@ -32,11 +32,8 @@ def summarize_email(email_item):
         return generate_fallback_summary(email_item, result)
         
     try:
-        genai.configure(api_key=api_key)
-        
-        # 모델 설정 (gemini-2.5-flash 또는 gemini-1.5-flash 사용 권장)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
+        client = genai.Client(api_key=api_key)
+
         prompt = f"""
 이메일 내용을 분석하여 요약 정보와 주요 요청 사항(Action Items)을 추출해 주세요.
 결과는 반드시 JSON 형식으로만 반환해야 하며, 마크다운 코드 블록(```json ... ```) 없이 순수한 JSON 내용만 출력해야 합니다.
@@ -57,7 +54,10 @@ def summarize_email(email_item):
 {email_item.get('body')}
 """
         
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
         text = response.text.strip()
         
         # ```json 마크다운 태그를 포함하여 출력하는 경우 대비 정제

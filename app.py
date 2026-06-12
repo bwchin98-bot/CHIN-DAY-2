@@ -5,7 +5,7 @@ from flask import Flask, render_template, jsonify, request
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-import google.generativeai as genai
+import google.genai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -141,10 +141,10 @@ def fetch_mails():
 
         # 3. Gemini AI 설정 및 분석 진행
         use_gemini = bool(api_key and api_key != "your_gemini_api_key_here")
+        client = None
         if use_gemini:
             try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                client = genai.Client(api_key=api_key)
             except Exception as e:
                 print(f"Gemini 초기화 실패: {e}")
                 use_gemini = False
@@ -172,7 +172,10 @@ def fetch_mails():
 이메일 제목: "{title}"
 """
                 try:
-                    response = model.generate_content(prompt)
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=prompt
+                    )
                     ai_output = response.text.strip()
                     
                     # 정제 작업

@@ -116,21 +116,35 @@ class EmailCrawler:
             # 로그인 실패 혹은 2단계 인증/캡차 필요 시
             raise Exception("네이버 로그인 실패 (보안 인증이나 캡차가 발생했을 수 있습니다.)")
 
-    def fetch_naver_emails(self, limit=5):
-        """네이버 메일함에서 메일 가져오기"""
+    def fetch_naver_emails(self, limit=None):
+        """네이버 메일함에서 모든 메일 가져오기"""
         emails = []
         try:
             self.driver.get("https://mail.naver.com/")
             time.sleep(3)
-            
-            # 메일 목록 로드 대기
-            # 네이버 메일은 iframe이나 SPA 구성에 따라 다를 수 있으므로 최신 스마트메일함/메일목록 선택자를 이용
-            mail_items = self.driver.find_elements(By.CSS_SELECTOR, "ol.mail_list > li")
-            if not mail_items:
-                # 구형 메일 디자인 또는 다른 메일 목록 구조 처리
-                mail_items = self.driver.find_elements(By.CSS_SELECTOR, "div.mailList > div.mItem")
-            
-            count = min(len(mail_items), limit)
+
+            # 무한 스크롤 처리
+            prev_count = 0
+            scroll_attempts = 0
+            max_attempts = 50
+
+            while scroll_attempts < max_attempts:
+                mail_items = self.driver.find_elements(By.CSS_SELECTOR, "ol.mail_list > li")
+                if not mail_items:
+                    mail_items = self.driver.find_elements(By.CSS_SELECTOR, "div.mailList > div.mItem")
+
+                current_count = len(mail_items)
+
+                if current_count == prev_count:
+                    break
+
+                prev_count = current_count
+
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(1)
+                scroll_attempts += 1
+
+            count = current_count if limit is None else min(current_count, limit)
             for i in range(count):
                 try:
                     # 다시 엘리먼트를 찾아서 stale element reference 방지

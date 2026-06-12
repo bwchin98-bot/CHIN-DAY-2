@@ -97,7 +97,7 @@ def fetch_mails():
         if not driver:
             from crawler import get_mock_emails
             mock_data = get_mock_emails()
-            raw_titles = [email["subject"] for email in mock_data[:5]]
+            raw_titles = [email["subject"] for email in mock_data]
         else:
             # 사용자가 입력한 특정 메일함 주소가 있다면 해당 주소로 브라우저 이동
             if target_url:

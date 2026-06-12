@@ -40,7 +40,7 @@ def summarize_email(email_item):
 반드시 아래 JSON 스키마를 만족해야 합니다:
 
 {{
-  "summary": "이메일 전체 요약 (한글 2~3문장)",
+  "summary": "이메일의 핵심 내용을 2-3문장으로 상세히 요약. 발신자, 주요 내용, 요청사항을 포함하되 정중한 경어체 사용",
   "action_items": ["요청사항 1", "요청사항 2", ...],
   "priority": "High" | "Medium" | "Low",
   "category": "업무" | "공지" | "결제/예약" | "개인" | "보안" | "기타"

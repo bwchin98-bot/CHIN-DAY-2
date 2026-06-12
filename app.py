@@ -6,19 +6,33 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
 
 def load_config():
+    config = {
+        "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+        "EMAIL_SERVICE": os.getenv("EMAIL_SERVICE", "naver"),
+        "EMAIL_ID": os.getenv("EMAIL_ID", ""),
+        "EMAIL_PW": os.getenv("EMAIL_PW", "")
+    }
+
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                file_config = json.load(f)
+                for key in config:
+                    if not config[key] and file_config.get(key):
+                        config[key] = file_config[key]
         except Exception:
             pass
-    return {"GEMINI_API_KEY": "", "EMAIL_SERVICE": "naver", "EMAIL_ID": "", "EMAIL_PW": ""}
+
+    return config
 
 def save_config(config_data):
     try:

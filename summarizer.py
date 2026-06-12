@@ -1,7 +1,10 @@
 import os
 import json
 import google.generativeai as genai
+from dotenv import load_dotenv
 from crawler import load_config
+
+load_dotenv()
 
 def summarize_email(email_item):
     """

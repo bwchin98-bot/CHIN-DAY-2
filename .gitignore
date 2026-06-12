@@ -1,0 +1,10 @@
+config.json
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.env
+gemini_test_result.txt

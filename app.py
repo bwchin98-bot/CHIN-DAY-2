@@ -97,18 +97,15 @@ def fetch_mails():
         if not driver:
             from crawler import get_mock_emails
             mock_data = get_mock_emails()
-            raw_titles = [email["subject"] for email in mock_data]
+            emails_to_analyze = mock_data
         else:
             # 사용자가 입력한 특정 메일함 주소가 있다면 해당 주소로 브라우저 이동
             if target_url:
                 driver.get(target_url)
-                time.sleep(3) # 페이지 로딩 대기
+                time.sleep(3)
 
-            # 2. 메일 제목 요소 긁어오기 (다양한 네이버 메일 버전 선택자 대응)
-            # 기본 클래스명 'text' 및 최신 네이버 메일 클래스명 'text_area', 'mail_title' 적용
             selectors = ["span.text_area", "a.mail_title", ".text", "div.name + a"]
             mail_elements = []
-
 
             for selector in selectors:
                 try:
@@ -120,7 +117,6 @@ def fetch_mails():
                     continue
 
             if not mail_elements:
-                # 기본 By.CLASS_NAMEFallback
                 try:
                     mail_elements = driver.find_elements(By.CLASS_NAME, "text")
                 except Exception:
@@ -132,8 +128,6 @@ def fetch_mails():
                     t = elem.text.strip()
                     if t and len(t) > 2:
                         raw_titles.append(t)
-                        if len(raw_titles) >= 5:  # 과도한 API 호출 방지를 위해 상위 5개 제한
-                            break
                 except Exception:
                     continue
 
@@ -141,8 +135,11 @@ def fetch_mails():
                 return jsonify({
                     "status": "success",
                     "data": [],
-                    "message": "현재 크롬 창에서 감지된 메일 제목이 없습니다. 메일 수신함 화면이 맞는지 확인해 주세요."
+                    "message": "현재 크롬 창에서 감지된 메일 제목이 없습니다."
                 })
+
+            # Chrome 모드에서는 제목만 있으므로 임시 객체 생성
+            emails_to_analyze = [{"subject": title, "body": ""} for title in raw_titles]
 
         # 3. Gemini AI 설정 및 분석 진행
         use_gemini = bool(api_key and api_key != "your_gemini_api_key_here")
@@ -155,26 +152,32 @@ def fetch_mails():
                 use_gemini = False
 
         processed_data = []
-        for i, title in enumerate(raw_titles, 1):
+        total_emails = len(emails_to_analyze)
+
+        for i, email_data in enumerate(emails_to_analyze, 1):
+            title = email_data.get("subject", "")
+            body = email_data.get("body", "")
+
             summary = "요약 정보를 추출할 수 없습니다."
             action = "확인 필요"
             priority = "Medium"
             category = "일반"
-            
+
             if use_gemini:
                 prompt = f"""
-당신은 사내 업무를 돕는 AI 비서입니다. 아래의 이메일 제목을 분석하여 다음 정보를 JSON 형식으로만 응답해 주세요.
-응답에 마크다운 태그(```json 등)를 포함하지 말고 순수 JSON 텍스트만 리턴해야 합니다.
+당신은 사내 업무를 돕는 AI 비서입니다. 아래의 이메일을 분석하여 다음 정보를 JSON 형식으로만 응답해 주세요.
 
 출력 JSON 포맷:
 {{
-  "summary": "메일의 핵심 맥락 1줄 요약 (정중한 경어체)",
-  "action": "메일 수신자가 취해야 할 행동 요약 (3~5단어 단답형, 예: 회신 필요, 일정 캘린더 등록, 서버 점검 확인)",
+  "summary": "메일의 핵심 맥락 1줄 요약",
+  "action": "메일 수신자가 취해야 할 행동 (3~5단어)",
   "priority": "High" | "Medium" | "Low",
   "category": "업무" | "공지" | "결제" | "보안" | "기타"
 }}
 
 이메일 제목: "{title}"
+이메일 본문:
+{body}
 """
                 try:
                     response = client.models.generate_content(
@@ -182,14 +185,13 @@ def fetch_mails():
                         contents=prompt
                     )
                     ai_output = response.text.strip()
-                    
-                    # 정제 작업
+
                     if ai_output.startswith("```json"):
                         ai_output = ai_output.split("```json")[1]
                     if "```" in ai_output:
                         ai_output = ai_output.split("```")[0]
                     ai_output = ai_output.strip()
-                    
+
                     parsed = json.loads(ai_output)
                     summary = parsed.get("summary", summary)
                     action = parsed.get("action", action)
@@ -200,7 +202,6 @@ def fetch_mails():
                     summary = f"'{title}' 건 요약 (API 오류)"
                     action = "수동 확인"
             else:
-                # API Key가 없는 경우 로컬 규칙 기반 룰로 가공 요약본 제공 (체험용 데모)
                 summary, action, priority, category = get_fallback_ai_analysis(title)
 
             processed_data.append({
@@ -212,7 +213,17 @@ def fetch_mails():
                 "category": category
             })
 
-        return jsonify({"status": "success", "data": processed_data, "is_mock_ai": not use_gemini})
+            print(f"Progress: {i}/{total_emails} - {title[:30]}...")
+
+        return jsonify({
+            "status": "success",
+            "data": processed_data,
+            "is_mock_ai": not use_gemini,
+            "progress": {
+                "current": total_emails,
+                "total": total_emails
+            }
+        })
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})

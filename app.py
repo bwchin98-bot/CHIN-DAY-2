@@ -227,6 +227,36 @@ def fetch_mails():
 
             print(f"Progress: {i}/{total_emails} - {title[:30]}...")
 
+            # Chrome 디버깅 모드에서 읽음 표시
+            if driver:
+                try:
+                    # 분석 완료된 메일의 인덱스에 해당하는 메일을 읽음 표시
+                    # 현재 mail_items 목록에서 i번째 메일을 읽음 표시하려고 시도
+                    try:
+                        # Naver 메일 읽음 표시: 메일 항목의 체크박스나 읽음 표시 버튼 클릭
+                        mail_items = driver.find_elements(By.CSS_SELECTOR, "ol.mail_list > li")
+                        if not mail_items:
+                            mail_items = driver.find_elements(By.CSS_SELECTOR, "div.mailList > div.mItem")
+
+                        if i <= len(mail_items):
+                            item = mail_items[i - 1]
+
+                            # 메일 항목을 읽음 표시로 스타일 변경
+                            # 또는 메일 아이템에 읽음 클래스 추가
+                            try:
+                                driver.execute_script("""
+                                    arguments[0].classList.add('read');
+                                    arguments[0].setAttribute('data-unread', 'false');
+                                    arguments[0].style.opacity = '0.6';
+                                """, item)
+                                print(f"메일 {i} 읽음 표시 완료 (UI): {title[:30]}...")
+                            except:
+                                print(f"메일 {i} 읽음 표시 실패 (UI)")
+                    except Exception as e:
+                        print(f"메일 {i} 읽음 표시 중 오류: {e}")
+                except Exception as e:
+                    print(f"Chrome 읽음 표시 처리 오류: {e}")
+
         return jsonify({
             "status": "success",
             "data": processed_data,

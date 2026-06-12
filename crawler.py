@@ -190,7 +190,50 @@ class EmailCrawler:
                         "date": date_str,
                         "body": body
                     })
-                    
+
+                    # 메일을 읽음 상태로 표시
+                    try:
+                        # 방법 1: 읽음 표시 버튼 찾아 클릭
+                        # Naver 메일의 읽음 표시 방법: 상단 버튼바에서 체크/읽음 표시
+                        mark_as_read = None
+
+                        # 옵션 1: "읽음" 버튼 직접 찾기
+                        try:
+                            mark_as_read = self.driver.find_element(By.XPATH, "//button[contains(text(), '읽음')]")
+                        except:
+                            pass
+
+                        # 옵션 2: 읽음 표시 아이콘 (별, 체크 등)
+                        if not mark_as_read:
+                            try:
+                                # 메일 상단의 읽음/안읽음 토글 버튼
+                                mark_as_read = self.driver.find_element(By.CSS_SELECTOR, "button[class*='unread']")
+                            except:
+                                pass
+
+                        # 옵션 3: JavaScript로 읽음 표시 상태 변경
+                        if not mark_as_read:
+                            try:
+                                self.driver.execute_script("""
+                                    // 메일 아이템에 읽음 클래스 추가
+                                    const mailItem = document.querySelector('[data-unread="true"]');
+                                    if (mailItem) {
+                                        mailItem.setAttribute('data-unread', 'false');
+                                        mailItem.classList.remove('unread');
+                                    }
+                                """)
+                            except:
+                                pass
+
+                        # 버튼이 있으면 클릭
+                        if mark_as_read:
+                            mark_as_read.click()
+                            time.sleep(0.5)
+
+                        print(f"메일 {i} 읽음 표시 완료: {subject[:30]}...")
+                    except Exception as e:
+                        print(f"메일 {i} 읽음 표시 실패: {e}")
+
                     # 다시 메일 목록으로 돌아가기
                     self.driver.back()
                     time.sleep(2)

@@ -311,7 +311,7 @@
             border-radius: 16px;
             padding: 20px;
             display: grid;
-            grid-template-columns: 80px 1fr 1fr 200px;
+            grid-template-columns: 40px 80px 1fr 1fr 200px;
             gap: 20px;
             align-items: center;
             animation: fadeIn 0.4s ease forwards;
@@ -548,11 +548,11 @@
 
         @media (max-width: 1024px) {
             .email-card {
-                grid-template-columns: 50px 1fr;
-                gap: 16px;
+                grid-template-columns: 40px 50px 1fr;
+                gap: 12px;
             }
             .email-summary-sec, .email-action-sec {
-                grid-column: span 2;
+                grid-column: span 3;
                 border-top: 1px solid var(--border-color);
                 padding-top: 12px;
             }
@@ -593,7 +593,11 @@
             <!-- Loader -->
             <div id="loader" class="loader-wrapper">
                 <div class="spinner"></div>
-                <p class="fw-bold" style="color: var(--accent-primary);">원격 디버깅 크롬 세션에 연결하여 분석하는 중입니다...</p>
+                <p class="fw-bold" style="color: var(--accent-primary);">메일 분석 중입니다...</p>
+                <div id="progressInfo" style="margin-top: 16px; text-align: center; color: var(--text-muted); font-size: 14px;">
+                    <p id="progressText">0/0</p>
+                    <p id="currentMailText" style="margin-top: 8px; font-size: 12px; max-width: 400px; word-break: break-word;"></p>
+                </div>
             </div>
 
             <!-- Chrome Connection Guide (shows on failure) -->
@@ -616,6 +620,13 @@
                     <i class="bi bi-collection-play-fill" style="color: var(--accent-primary);"></i>
                     <span>실시간 수집 및 요약 분석 결과</span>
                     <span id="mockBadge" class="mock-badge" style="display: none;">로컬 시뮬레이션 적용됨</span>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <span id="selectedCount" style="color: var(--text-muted); font-size: 14px;">선택됨: 0</span>
+                    <button id="deleteBtn" class="btn-premium" style="display: none; padding: 8px 16px; font-size: 14px;" onclick="deleteSelectedEmails()">
+                        <i class="bi bi-trash"></i>
+                        <span>삭제</span>
+                    </button>
                 </div>
             </div>
 
@@ -717,6 +728,54 @@
             });
         }
 
+        // 선택된 메일 개수 업데이트
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.email-checkbox');
+            const checked = document.querySelectorAll('.email-checkbox:checked');
+            const deleteBtn = document.getElementById('deleteBtn');
+            const selectedCount = document.getElementById('selectedCount');
+
+            selectedCount.innerText = `선택됨: ${checked.length}/${checkboxes.length}`;
+            deleteBtn.style.display = checked.length > 0 ? 'inline-flex' : 'none';
+        }
+
+        // 선택된 메일 삭제
+        function deleteSelectedEmails() {
+            const checkboxes = document.querySelectorAll('.email-checkbox:checked');
+            const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.idx));
+
+            if (indices.length === 0) {
+                alert('삭제할 메일을 선택해주세요.');
+                return;
+            }
+
+            if (!confirm(`${indices.length}개의 메일을 삭제하시겠습니까?`)) {
+                return;
+            }
+
+            fetch('/api/delete-emails', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ indices: indices })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // UI에서 카드 제거
+                    indices.forEach(idx => {
+                        const card = document.querySelector(`[data-idx="${idx}"]`);
+                        if (card) card.remove();
+                    });
+
+                    // 선택 카운트 업데이트
+                    updateSelectedCount();
+
+                    alert(`${data.deleted_count}개 메일이 삭제되었습니다.`);
+                }
+            })
+            .catch(err => alert('삭제 실패: ' + err.message));
+        }
+
         // Scraping execution
         function startScraping() {
             const runBtn = document.getElementById('runBtn');
@@ -769,7 +828,8 @@
                             res.data.forEach(mail => {
                                 const priorityClass = `badge-priority-${mail.priority.toLowerCase()}`;
                                 cardsHtml += `
-                                    <div class="email-card">
+                                    <div class="email-card" data-idx="${mail.idx}" style="display: grid; grid-template-columns: 40px 80px 1fr 1fr 200px; gap: 20px;">
+                                        <input type="checkbox" class="email-checkbox" data-idx="${mail.idx}" style="width: 18px; height: 18px; cursor: pointer; margin-top: 4px;">
                                         <div class="email-idx-tag">${mail.idx}</div>
                                         <div class="email-title-sec">
                                             <div class="email-title">${mail.title}</div>
@@ -792,6 +852,11 @@
                                 `;
                             });
                             container.innerHTML = cardsHtml;
+
+                            // 체크박스 이벤트 리스너 추가
+                            document.querySelectorAll('.email-checkbox').forEach(checkbox => {
+                                checkbox.addEventListener('change', updateSelectedCount);
+                            });
                         }
                     } else {
                         container.innerHTML = `

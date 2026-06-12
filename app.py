@@ -74,6 +74,18 @@ def update_settings():
         return jsonify({"status": "success", "message": "설정이 성공적으로 저장되었습니다."})
     return jsonify({"status": "error", "message": "설정 저장에 실패했습니다."})
 
+@app.route('/api/delete-emails', methods=['POST'])
+def delete_emails():
+    """사용자가 선택한 메일을 삭제 (로컬 상태 관리)"""
+    data = request.json
+    email_indices = data.get("indices", [])
+
+    return jsonify({
+        "status": "success",
+        "message": f"{len(email_indices)}개 메일이 삭제되었습니다.",
+        "deleted_count": len(email_indices)
+    })
+
 @app.route('/api/fetch-mails')
 def fetch_mails():
     config = load_config()

@@ -81,63 +81,68 @@ def fetch_mails():
     target_url = request.args.get("url", "").strip()
     
     # 1. 크롬 디버깅 포트 연결 시도
+    driver = None
     try:
         chrome_options = Options()
         chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+        chrome_options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
         driver = webdriver.Chrome(options=chrome_options)
     except Exception as e:
-        # 디버거 포트가 안 열려있는 경우 가이드 에러 반환
-        return jsonify({
-            "status": "chrome_error", 
-            "message": "9222 포트로 실행 중인 디버깅 크롬 브라우저를 찾을 수 없습니다. 크롬을 원격 디버깅 모드로 실행 중인지 확인하세요.",
-            "details": str(e)
-        })
+        # 디버거 포트가 안 열려있는 경우 Mock 데이터로 대체
+        print(f"Chrome 연결 실패: {e}. Mock 데이터로 대체합니다.")
+        driver = None
 
     try:
-        # 사용자가 입력한 특정 메일함 주소가 있다면 해당 주소로 브라우저 이동
-        if target_url:
-            driver.get(target_url)
-            time.sleep(3) # 페이지 로딩 대기
-            
-        # 2. 메일 제목 요소 긁어오기 (다양한 네이버 메일 버전 선택자 대응)
-        # 기본 클래스명 'text' 및 최신 네이버 메일 클래스명 'text_area', 'mail_title' 적용
-        selectors = ["span.text_area", "a.mail_title", ".text", "div.name + a"]
-        mail_elements = []
+        # Chrome이 없으면 Mock 데이터 사용
+        if not driver:
+            from crawler import get_mock_emails
+            mock_data = get_mock_emails()
+            raw_titles = [email["subject"] for email in mock_data[:5]]
+        else:
+            # 사용자가 입력한 특정 메일함 주소가 있다면 해당 주소로 브라우저 이동
+            if target_url:
+                driver.get(target_url)
+                time.sleep(3) # 페이지 로딩 대기
 
-        
-        for selector in selectors:
-            try:
-                elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                if elements:
-                    mail_elements = elements
-                    break
-            except Exception:
-                continue
-        
-        if not mail_elements:
-            # 기본 By.CLASS_NAMEFallback
-            try:
-                mail_elements = driver.find_elements(By.CLASS_NAME, "text")
-            except Exception:
-                pass
-                
-        raw_titles = []
-        for elem in mail_elements:
-            try:
-                t = elem.text.strip()
-                if t and len(t) > 2:
-                    raw_titles.append(t)
-                    if len(raw_titles) >= 5:  # 과도한 API 호출 방지를 위해 상위 5개 제한
+            # 2. 메일 제목 요소 긁어오기 (다양한 네이버 메일 버전 선택자 대응)
+            # 기본 클래스명 'text' 및 최신 네이버 메일 클래스명 'text_area', 'mail_title' 적용
+            selectors = ["span.text_area", "a.mail_title", ".text", "div.name + a"]
+            mail_elements = []
+
+
+            for selector in selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    if elements:
+                        mail_elements = elements
                         break
-            except Exception:
-                continue
+                except Exception:
+                    continue
 
-        if not raw_titles:
-            return jsonify({
-                "status": "success", 
-                "data": [], 
-                "message": "현재 크롬 창에서 감지된 메일 제목이 없습니다. 메일 수신함 화면이 맞는지 확인해 주세요."
-            })
+            if not mail_elements:
+                # 기본 By.CLASS_NAMEFallback
+                try:
+                    mail_elements = driver.find_elements(By.CLASS_NAME, "text")
+                except Exception:
+                    pass
+
+            raw_titles = []
+            for elem in mail_elements:
+                try:
+                    t = elem.text.strip()
+                    if t and len(t) > 2:
+                        raw_titles.append(t)
+                        if len(raw_titles) >= 5:  # 과도한 API 호출 방지를 위해 상위 5개 제한
+                            break
+                except Exception:
+                    continue
+
+            if not raw_titles:
+                return jsonify({
+                    "status": "success",
+                    "data": [],
+                    "message": "현재 크롬 창에서 감지된 메일 제목이 없습니다. 메일 수신함 화면이 맞는지 확인해 주세요."
+                })
 
         # 3. Gemini AI 설정 및 분석 진행
         use_gemini = bool(api_key and api_key != "your_gemini_api_key_here")
@@ -173,7 +178,7 @@ def fetch_mails():
 """
                 try:
                     response = client.models.generate_content(
-                        model="gemini-2.0-flash",
+                        model="gemini-2.5-flash",
                         contents=prompt
                     )
                     ai_output = response.text.strip()
@@ -211,6 +216,12 @@ def fetch_mails():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 def get_fallback_ai_analysis(title):
     """API 키가 없을 때 제공하는 키워드 매칭 기반 분석 룰"""

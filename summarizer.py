@@ -55,7 +55,7 @@ def summarize_email(email_item):
 """
         
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt
         )
         text = response.text.strip()

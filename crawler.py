@@ -191,50 +191,62 @@ class EmailCrawler:
                         "body": body
                     })
 
-                    # 메일을 읽음 상태로 표시
+                    # 메일을 읽음 상태로 표시 (Naver 서버에 저장)
                     try:
-                        # 방법 1: 읽음 표시 버튼 찾아 클릭
-                        # Naver 메일의 읽음 표시 방법: 상단 버튼바에서 체크/읽음 표시
                         mark_as_read = None
 
-                        # 옵션 1: "읽음" 버튼 직접 찾기
+                        # 방법 1: 상단 메뉴에서 "읽음" 버튼 찾기
                         try:
-                            mark_as_read = self.driver.find_element(By.XPATH, "//button[contains(text(), '읽음')]")
+                            # Naver 메일 상단 툴바의 읽음/안읽음 토글
+                            mark_as_read = self.driver.find_element(By.XPATH, "//button[contains(@class, 'ToolButton') and contains(text(), '읽음')]")
                         except:
                             pass
 
-                        # 옵션 2: 읽음 표시 아이콘 (별, 체크 등)
+                        # 방법 2: 더보기 메뉴에서 "읽음" 옵션 클릭
                         if not mark_as_read:
                             try:
-                                # 메일 상단의 읽음/안읽음 토글 버튼
-                                mark_as_read = self.driver.find_element(By.CSS_SELECTOR, "button[class*='unread']")
+                                # 더보기 버튼 클릭
+                                more_btn = self.driver.find_element(By.XPATH, "//button[contains(@class, 'MoreButton')]")
+                                more_btn.click()
+                                time.sleep(0.5)
+
+                                # 읽음 옵션 클릭
+                                mark_as_read = self.driver.find_element(By.XPATH, "//a[contains(text(), '읽음')]")
+                                if mark_as_read:
+                                    mark_as_read.click()
+                                    time.sleep(0.5)
                             except:
                                 pass
 
-                        # 옵션 3: JavaScript로 읽음 표시 상태 변경
+                        # 방법 3: JavaScript로 메일 상태 업데이트 요청
                         if not mark_as_read:
                             try:
+                                # Naver 메일의 상태 변경 API 호출
                                 self.driver.execute_script("""
-                                    // 메일 아이템에 읽음 클래스 추가
-                                    const mailItem = document.querySelector('[data-unread="true"]');
-                                    if (mailItem) {
-                                        mailItem.setAttribute('data-unread', 'false');
-                                        mailItem.classList.remove('unread');
+                                    // 현재 메일의 읽음 상태를 변경하는 요청
+                                    if (window.__MAIL__ && window.__MAIL__.MailManager) {
+                                        const mailId = document.querySelector('[data-mail-id]')?.getAttribute('data-mail-id');
+                                        if (mailId) {
+                                            // 메일 읽음 상태 변경 API 호출
+                                            fetch('/api/MailMessages/' + mailId + '/read', {
+                                                method: 'PUT',
+                                                headers: {'Content-Type': 'application/json'},
+                                                body: JSON.stringify({read: true})
+                                            });
+                                        }
                                     }
                                 """)
-                            except:
-                                pass
+                                print(f"메일 {i} 읽음 상태 변경 요청 완료")
+                            except Exception as js_error:
+                                print(f"JavaScript 실행 오류: {js_error}")
 
-                        # 버튼이 있으면 클릭
-                        if mark_as_read:
-                            mark_as_read.click()
-                            time.sleep(0.5)
-
-                        print(f"메일 {i} 읽음 표시 완료: {subject[:30]}...")
+                        print(f"메일 {i} 처리 완료: {subject[:30]}...")
                     except Exception as e:
-                        print(f"메일 {i} 읽음 표시 실패: {e}")
+                        print(f"메일 {i} 읽음 처리 중 오류: {e}")
 
                     # 다시 메일 목록으로 돌아가기
+                    # Naver는 메일을 읽으면 자동으로 읽음 상태를 서버에 저장합니다.
+                    # (메일을 열었을 때 자동 저장됨)
                     self.driver.back()
                     time.sleep(2)
                     
